@@ -1,0 +1,11 @@
+host = "localdomain.localhost"
+cache_dir = "./.cache_dir"
+disable_https = true
+storage = "s3"
+local_cache_file = "test.db"
+
+[repositories]
+  [repositories."f110/test1"]
+
+[github]
+token = "hoge"
