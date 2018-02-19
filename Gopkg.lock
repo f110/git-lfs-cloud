@@ -31,9 +31,30 @@
   packages = [
     "aws",
     "aws/awserr",
+    "aws/awsutil",
+    "aws/client",
+    "aws/client/metadata",
+    "aws/corehandlers",
     "aws/credentials",
+    "aws/credentials/ec2rolecreds",
+    "aws/credentials/endpointcreds",
+    "aws/credentials/stscreds",
+    "aws/defaults",
+    "aws/ec2metadata",
     "aws/endpoints",
-    "internal/shareddefaults"
+    "aws/request",
+    "aws/session",
+    "aws/signer/v4",
+    "internal/shareddefaults",
+    "private/protocol",
+    "private/protocol/query",
+    "private/protocol/query/queryutil",
+    "private/protocol/rest",
+    "private/protocol/restxml",
+    "private/protocol/xml/xmlutil",
+    "service/s3",
+    "service/s3/s3iface",
+    "service/sts"
   ]
   revision = "c9b25d6bfa986ab6d195479871a96e81b8882536"
   version = "v1.12.77"
@@ -86,6 +107,11 @@
   packages = ["."]
   revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
   version = "v2.0.0"
+
+[[projects]]
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  revision = "0b12d6b5"
 
 [[projects]]
   branch = "master"
@@ -229,6 +255,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "84fd4f1f4ec808563c5ee0a3c5b849ea6a8a4d8952df09fbd1ffc48703b8e924"
+  inputs-digest = "8e39663a1b46625b57c605b14b66bd2e33fba1b4c35c9d15fa9f0ddb55b50f2b"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -33,6 +33,7 @@ func run() int {
 	globalConfig = conf
 
 	github := auth.NewGitHub(globalConfig.GitHub.Token)
+	auth.DefaultClient = github
 
 	// Open database file
 	db, err := bolt.Open(globalConfig.LocalCacheFile, 0644, nil)

@@ -69,6 +69,17 @@ func ReadRepositoryUsers(repo string) ([]string, error) {
 	return users, nil
 }
 
+func DeleteRepositoryUser(repo string) error {
+	return Conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(BucketRepositoryUsers)
+		if b == nil {
+			return nil
+		}
+
+		return b.Delete([]byte(repo))
+	})
+}
+
 func (Credential) SaveHostKey(hostKey []byte) error {
 	return Conn.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(BucketCredential)
@@ -154,4 +165,15 @@ func ReadPublicKeys(name string) ([]ssh.PublicKey, error) {
 	}
 
 	return pubKeys, nil
+}
+
+func DeletePublicKeys(name string) error {
+	return Conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(BucketPublicKeys)
+		if b == nil {
+			return nil
+		}
+
+		return b.Delete([]byte(name))
+	})
 }

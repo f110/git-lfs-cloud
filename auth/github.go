@@ -13,6 +13,7 @@ import (
 
 var (
 	PermitPublicKeys = map[string][]ssh.PublicKey{}
+	DefaultClient    *GitHub
 )
 
 type GitHub struct {
@@ -29,49 +30,16 @@ func NewGitHub(token string) *GitHub {
 
 func (gh *GitHub) CrawlRepositories(repos map[string]*config.RepositoryConfig) error {
 	for _, v := range repos {
-		users, err := database.ReadRepositoryUsers(v.Owner + "/" + v.Repo)
-		if err != nil || len(users) == 0 {
-			githubUsers, err := gh.GetMembers(v.Owner, v.Repo)
-			if err != nil {
-				return err
-			}
-			userNames := make([]string, 0, len(githubUsers))
-			for _, u := range githubUsers {
-				userNames = append(userNames, *u.Login)
-			}
-			database.SaveRepositoryUsers(v.Owner+"/"+v.Repo, userNames)
-			users = userNames
-		}
-
-		for _, user := range users {
-			if _, ok := PermitPublicKeys[user]; ok == false {
-				PermitPublicKeys[user] = make([]ssh.PublicKey, 0)
-			}
-			keys, err := database.ReadPublicKeys(user)
-			if err != nil || len(keys) == 0 {
-				githubKeys, err := gh.GetPubkey(user)
-				if err != nil {
-					return err
-				}
-				opensshKeys := make([]ssh.PublicKey, 0, len(githubKeys))
-				for _, key := range githubKeys {
-					pubKey, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(*key.Key))
-					opensshKeys = append(opensshKeys, pubKey)
-				}
-				err = database.SavePubKey(user, opensshKeys)
-				if err != nil {
-					log.Print(err)
-					continue
-				}
-			} else {
-				PermitPublicKeys[user] = append(PermitPublicKeys[user], keys...)
-			}
+		err := gh.crawlRepository(v)
+		if err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
-func (gh *GitHub) GetMembers(owner string, repo string) ([]*github.User, error) {
+func (gh *GitHub) GetMembers(owner, repo string) ([]*github.User, error) {
 	teamsOpt := &github.ListOptions{PerPage: 100}
 	teams, _, err := gh.client.Repositories.ListTeams(context.Background(), owner, repo, teamsOpt)
 	if err != nil {
@@ -104,8 +72,87 @@ func (gh *GitHub) GetMembers(owner string, repo string) ([]*github.User, error) 
 	return repoUsers, nil
 }
 
+func (gh *GitHub) InvalidateRepositoryCache(owner, repo string) error {
+	users, err := database.ReadRepositoryUsers(owner + "/" + repo)
+	if err != nil {
+		return err
+	}
+
+	for _, u := range users {
+		log.Printf("Delete %s's public keys", u)
+		err := database.DeletePublicKeys(u)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("Delete %s/%s user list", owner, repo)
+	return database.DeleteRepositoryUser(owner + "/" + repo)
+}
+
 func (gh *GitHub) GetPubkey(login string) ([]*github.Key, error) {
 	opt := &github.ListOptions{PerPage: 100}
 	keys, _, err := gh.client.Users.ListKeys(context.Background(), login, opt)
 	return keys, err
+}
+
+func (gh *GitHub) crawlRepository(repo *config.RepositoryConfig) error {
+	users, err := gh.readOrGetRepositoryMember(repo.Owner, repo.Repo)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		keys, err := gh.readOrGetUserPublicKeys(user)
+		if err != nil {
+			return err
+		}
+		PermitPublicKeys[user] = keys
+	}
+
+	return nil
+}
+
+func (gh *GitHub) readOrGetRepositoryMember(owner, repo string) ([]string, error) {
+	users, err := database.ReadRepositoryUsers(owner + "/" + repo)
+	if err != nil || len(users) == 0 {
+		githubUsers, err := gh.GetMembers(owner, repo)
+		if err != nil {
+			return nil, err
+		}
+		userNames := make([]string, 0, len(githubUsers))
+		for _, u := range githubUsers {
+			userNames = append(userNames, *u.Login)
+		}
+		log.Printf("Save %s/%s user list", owner, repo)
+		database.SaveRepositoryUsers(owner+"/"+repo, userNames)
+		users = userNames
+	}
+
+	return users, nil
+}
+
+func (gh *GitHub) readOrGetUserPublicKeys(login string) ([]ssh.PublicKey, error) {
+	keys, err := database.ReadPublicKeys(login)
+	if err != nil || len(keys) == 0 {
+		githubKeys, err := gh.GetPubkey(login)
+		if err != nil {
+			return nil, err
+		}
+		opensshKeys := make([]ssh.PublicKey, 0, len(githubKeys))
+		for _, key := range githubKeys {
+			pubKey, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(*key.Key))
+			opensshKeys = append(opensshKeys, pubKey)
+		}
+		log.Printf("Save %s's public keys", login)
+		err = database.SavePubKey(login, opensshKeys)
+		if err != nil {
+			log.Print(err)
+			return nil, err
+		}
+
+		keys = opensshKeys
+	}
+
+	return keys, nil
 }
