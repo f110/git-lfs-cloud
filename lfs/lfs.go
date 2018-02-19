@@ -1,7 +1,6 @@
 package lfs
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/f110/git-lfs-cloud/config"
 	"github.com/f110/git-lfs-cloud/storage"
-	"golang.org/x/crypto/acme/autocert"
 )
 
 const (
@@ -53,9 +51,9 @@ type Object struct {
 }
 
 type Action struct {
-	Download Download `json:"download,omitempty"`
-	Upload   Upload   `json:"upload,omitempty"`
-	Verify   Verify   `json:"verify,omitempty"`
+	Download *Download `json:"download,omitempty"`
+	Upload   *Upload   `json:"upload,omitempty"`
+	Verify   *Verify   `json:"verify,omitempty"`
 }
 
 type Download struct {
@@ -92,7 +90,7 @@ func NewServer(repositories map[string]*config.RepositoryConfig) *Server {
 		case "nop":
 			engine = &storage.Nop{}
 		}
-		reposConfig[v.Owner+"/"+v.Repo] = repositoryConfig{storageEngine: engine}
+		reposConfig[v.Owner+"/"+v.Repo] = repositoryConfig{storageEngine: engine, bucketName: v.Bucket}
 	}
 	return &Server{Repositories: reposConfig}
 }
@@ -100,12 +98,17 @@ func NewServer(repositories map[string]*config.RepositoryConfig) *Server {
 func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 	splitedPath := strings.Split(req.URL.EscapedPath(), "/")[1:]
 	repoName := ""
+	repositoryNameNotFound := true
 	for _, v := range splitedPath {
 		if strings.Index(v, ".git") > 0 {
 			repoName += v
+			repositoryNameNotFound = false
 			break
 		}
 		repoName += v + "/"
+	}
+	if repositoryNameNotFound {
+		return
 	}
 	repoName = repoName[:strings.Index(repoName, ".git")]
 
@@ -125,7 +128,7 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 				Size:         o.Size,
 				Autheticated: true,
 				Actions: Action{
-					Download: Download{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
+					Download: &Download{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
 				},
 			})
 		}
@@ -137,7 +140,7 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 				Size:         o.Size,
 				Autheticated: true,
 				Actions: Action{
-					Upload: Upload{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
+					Upload: &Upload{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
 				},
 			})
 		}
@@ -166,6 +169,7 @@ func (server *Server) operationUpload(repoName, objectID string) string {
 	repoConf := server.Repositories[repoName]
 	u, err := repoConf.storageEngine.Put(repoConf.bucketName, repoName, objectID)
 	if err != nil {
+		log.Print(err)
 		return ""
 	}
 	return u
@@ -177,7 +181,7 @@ func (server *Server) ServeMux() http.Handler {
 	return m
 }
 
-func ObjectServer(disableHttps bool, cacheDir, host string, repos map[string]*config.RepositoryConfig) {
+func ObjectServer(disableHttps bool, certFile, keyFile string, repos map[string]*config.RepositoryConfig) {
 	serv := NewServer(repos)
 	if disableHttps {
 		s := &http.Server{
@@ -187,18 +191,11 @@ func ObjectServer(disableHttps bool, cacheDir, host string, repos map[string]*co
 		log.Println("starting lfs server on port 8080 (without TLS)...")
 		log.Print(s.ListenAndServe())
 	} else {
-		m := &autocert.Manager{
-			Cache:      autocert.DirCache(cacheDir),
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(host),
-		}
-		go http.ListenAndServe(":http", m.HTTPHandler(nil))
 		s := &http.Server{
-			Addr:      ":https",
-			Handler:   serv.ServeMux(),
-			TLSConfig: &tls.Config{GetCertificate: m.GetCertificate},
+			Addr:    ":https",
+			Handler: serv.ServeMux(),
 		}
 		log.Println("starting lfs server on port 443...")
-		log.Print(s.ListenAndServeTLS("", ""))
+		log.Print(s.ListenAndServeTLS(certFile, keyFile))
 	}
 }

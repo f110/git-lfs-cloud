@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/pem"
 	"io"
 	"net/http"
 	"time"
@@ -20,7 +19,7 @@ var (
 
 type GoogleCloudStorage struct {
 	client     *storage.Client
-	privateKey *pem.Block
+	privateKey []byte
 	accessID   string
 }
 
@@ -37,16 +36,18 @@ func NewCloudStorage(accessID, credentialFile string) *GoogleCloudStorage {
 	if err != nil {
 		return nil
 	}
-	pemBlock, rest := pem.Decode(jwtConfig.PrivateKey)
-	if len(rest) > 0 {
-		return nil
-	}
 
-	return &GoogleCloudStorage{client: client, privateKey: pemBlock, accessID: accessID}
+	return &GoogleCloudStorage{client: client, privateKey: jwtConfig.PrivateKey, accessID: jwtConfig.Email}
 }
 
 func (gcs *GoogleCloudStorage) Get(bucketName, repo, objectID string) (string, error) {
-	return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{Method: http.MethodGet, PrivateKey: gcs.privateKey.Bytes, GoogleAccessID: gcs.AccessID, Expires: time.Now().Add(URLExpire)})
+	return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{
+		Method:         http.MethodGet,
+		PrivateKey:     gcs.privateKey,
+		GoogleAccessID: gcs.accessID,
+		Expires:        time.Now().Add(URLExpire),
+		ContentType:    "application/octet-stream",
+	})
 }
 
 func (gcs *GoogleCloudStorage) GetObject(ctx context.Context, bucketName, repo, objectID string) (io.Reader, error) {
@@ -54,7 +55,14 @@ func (gcs *GoogleCloudStorage) GetObject(ctx context.Context, bucketName, repo, 
 }
 
 func (gcs *GoogleCloudStorage) Put(bucketName, repo, objectID string) (string, error) {
-	return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{Method: http.MethodPut, PrivateKey: gcs.privateKey.Bytes, GoogleAccessID: gcs.AccessID, Expires: time.Now().Add(URLExpire)})
+	return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{
+		Method:         http.MethodPut,
+		PrivateKey:     gcs.privateKey,
+		GoogleAccessID: gcs.accessID,
+		Expires:        time.Now().Add(URLExpire),
+		ContentType:    "application/octet-stream",
+	},
+	)
 }
 
 func (gcs *GoogleCloudStorage) PutObject(ctx context.Context, bucketName, repo, objectID string) (io.Writer, error) {

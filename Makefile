@@ -14,6 +14,10 @@ build: $(TARGET) \
 test:
 	go test -v ./...
 
+.PHONY: clean
+clean:
+	rm -rf build
+
 $(TARGET): $(SRCS)
 	GOOS=$(GOOS) GOARCH=$(GOARCH) $(GOBUILD) -o $@ $^
 

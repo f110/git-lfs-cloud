@@ -2,7 +2,8 @@ package config
 
 type Config struct {
 	Host           string
-	CacheDir       string `toml:"cache_dir"`
+	CertFile       string `toml:"cert_file"`
+	KeyFile        string `toml:"key_file"`
 	DisableHttps   bool   `toml:"disable_https"`
 	Storage        string
 	Repositories   map[string]*RepositoryConfig
@@ -21,4 +22,5 @@ type RepositoryConfig struct {
 	Storage        string
 	CredentialFile string `toml:"credential_file"`
 	AccessID       string `toml:"access_id"`
+	Bucket         string
 }

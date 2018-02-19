@@ -55,7 +55,7 @@ func run() int {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		lfs.ObjectServer(globalConfig.DisableHttps, globalConfig.CacheDir, globalConfig.Host, globalConfig.Repositories)
+		lfs.ObjectServer(globalConfig.DisableHttps, globalConfig.CertFile, globalConfig.KeyFile, globalConfig.Repositories)
 	}()
 	wg.Wait()
 
