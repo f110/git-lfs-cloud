@@ -134,7 +134,7 @@ func (gh *GitHub) readOrGetRepositoryMember(owner, repo string) ([]string, error
 
 func (gh *GitHub) readOrGetUserPublicKeys(login string) ([]ssh.PublicKey, error) {
 	keys, err := database.ReadPublicKeys(login)
-	if err != nil || len(keys) == 0 {
+	if err != nil {
 		githubKeys, err := gh.GetPubkey(login)
 		if err != nil {
 			return nil, err
