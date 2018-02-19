@@ -25,7 +25,6 @@ const (
 )
 
 const (
-	OperationWhoAmI   = "x-whoami"
 	OperationDownload = "download"
 	OperationUpload   = "upload"
 )

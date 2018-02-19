@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/f110/git-lfs-cloud/database"
@@ -17,9 +18,10 @@ import (
 )
 
 const (
-	HostKeyBits         = 4096
-	TokenExpire         = 3600 // 1 hour
-	AuthenticateCommand = "git-lfs-authenticate"
+	HostKeyBits          = 4096
+	TokenExpire          = 3600 // 1 hour
+	AuthenticateCommand  = "git-lfs-authenticate"
+	AdminOperationWhoAmI = "x-whoami"
 )
 
 type Authenticate struct {
@@ -100,7 +102,7 @@ func SSHServer() {
 		var username string
 
 		if s.Command()[0] == AuthenticateCommand {
-			repo = s.Command()[1]
+			repo = s.Command()[1][:strings.Index(s.Command()[1], ".git")]
 			operation = s.Command()[2]
 		} else {
 			io.WriteString(s, "not supported\n")
@@ -118,13 +120,28 @@ func SSHServer() {
 			}
 		}
 
+		users, err := database.ReadRepositoryUsers(repo)
+		if err != nil {
+			return
+		}
+		authenticated := false
+		for _, u := range users {
+			if u == username {
+				authenticated = true
+				break
+			}
+		}
+		if authenticated == false {
+			return
+		}
+
 		switch operation {
-		case lfs.OperationWhoAmI:
-			handleWhoAmI(s, username, repo)
 		case lfs.OperationDownload:
 			handleDownload(s, username, repo)
 		case lfs.OperationUpload:
 			handleUpload(s, username, repo)
+		case AdminOperationWhoAmI:
+			handleWhoAmI(s, username, repo)
 		default:
 			io.WriteString(s, "not supported operation")
 		}
