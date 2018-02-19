@@ -26,12 +26,12 @@ func NewSession(user string) (Session, error) {
 	hash := sha1.Sum(buf)
 
 	sess := Session{ID: fmt.Sprintf("%x", hash), Username: user}
-	SessionStore.Store(user, &sess)
+	SessionStore.Store(sess.ID, &sess)
 	return sess, nil
 }
 
-func FindSession(user string) (Session, error) {
-	v, ok := SessionStore.Load(user)
+func FindSession(id string) (Session, error) {
+	v, ok := SessionStore.Load(id)
 	if ok == false {
 		return Session{}, errors.New("session not found")
 	}

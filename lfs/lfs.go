@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/f110/git-lfs-cloud/config"
+	"github.com/f110/git-lfs-cloud/database"
 	"github.com/f110/git-lfs-cloud/storage"
 )
 
@@ -113,9 +114,35 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	repoName = repoName[:strings.Index(repoName, ".git")]
 
+	authHeader := req.Header.Get("Authorization")
+	if len(authHeader) == 0 {
+		return
+	}
+	id := strings.Split(authHeader, " ")[1]
+	sess, err := FindSession(id)
+	if err != nil {
+		return
+	}
+	username := sess.Username
+
+	users, err := database.ReadRepositoryUsers(repoName)
+	if err != nil {
+		return
+	}
+	authenticated := false
+	for _, u := range users {
+		if u == username {
+			authenticated = true
+			break
+		}
+	}
+	if authenticated == false {
+		return
+	}
+
 	var batchReq BatchRequest
 	var batchRes BatchResponse
-	err := json.NewDecoder(req.Body).Decode(&batchReq)
+	err = json.NewDecoder(req.Body).Decode(&batchReq)
 	if err != nil {
 		return
 	}
