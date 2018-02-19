@@ -3,18 +3,13 @@ package storage
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
-
-	"io/ioutil"
 
 	"cloud.google.com/go/storage"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
-)
-
-var (
-	URLExpire = 10 * time.Minute
 )
 
 type GoogleCloudStorage struct {
@@ -50,7 +45,7 @@ func (gcs *GoogleCloudStorage) Get(bucketName, repo, objectID string) (string, e
 	})
 }
 
-func (gcs *GoogleCloudStorage) GetObject(ctx context.Context, bucketName, repo, objectID string) (io.Reader, error) {
+func (gcs *GoogleCloudStorage) GetObject(ctx context.Context, bucketName, repo, objectID string) (io.ReadCloser, error) {
 	return gcs.client.Bucket(bucketName).Object(repo + "/" + objectID).NewReader(ctx)
 }
 
@@ -65,6 +60,6 @@ func (gcs *GoogleCloudStorage) Put(bucketName, repo, objectID string) (string, e
 	)
 }
 
-func (gcs *GoogleCloudStorage) PutObject(ctx context.Context, bucketName, repo, objectID string) (io.Writer, error) {
+func (gcs *GoogleCloudStorage) PutObject(ctx context.Context, bucketName, repo, objectID string) (io.WriteCloser, error) {
 	return gcs.client.Bucket(bucketName).Object(repo + "/" + objectID).NewWriter(ctx), nil
 }

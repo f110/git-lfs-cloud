@@ -23,4 +23,5 @@ type RepositoryConfig struct {
 	CredentialFile string `toml:"credential_file"`
 	AccessID       string `toml:"access_id"`
 	Bucket         string
+	Region         string
 }

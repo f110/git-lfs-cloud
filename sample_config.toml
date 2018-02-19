@@ -1,11 +1,15 @@
 host = "localdomain.localhost"
-cache_dir = "./.cache_dir"
-disable_https = true
+cert_file = "fullchain.pem"
+key_file = "privkey.pem"
+disable_https = false
 storage = "s3"
 local_cache_file = "test.db"
 
 [repositories]
-  [repositories."f110/test1"]
+    [repositories."f110/test1"]
+    storage = "google"
+    credential_file = "./credential.json"
+    access_id = "lfs@google"
 
 [github]
 token = "hoge"

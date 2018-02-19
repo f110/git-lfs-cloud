@@ -87,6 +87,8 @@ func NewServer(repositories map[string]*config.RepositoryConfig) *Server {
 		switch v.Storage {
 		case "google":
 			engine = storage.NewCloudStorage(v.AccessID, v.CredentialFile)
+		case "s3":
+			engine = storage.NewAmazonS3(v.Region)
 		case "nop":
 			engine = &storage.Nop{}
 		}
