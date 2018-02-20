@@ -33,6 +33,7 @@ func run() int {
 	globalConfig = conf
 
 	github := auth.NewGitHub(globalConfig.GitHub.Token)
+	auth.DefaultClient = github
 
 	// Open database file
 	db, err := bolt.Open(globalConfig.LocalCacheFile, 0644, nil)
@@ -55,7 +56,7 @@ func run() int {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		lfs.ObjectServer(globalConfig.DisableHttps, globalConfig.CacheDir, globalConfig.Host, globalConfig.Repositories)
+		lfs.ObjectServer(globalConfig.DisableHttps, globalConfig.CertFile, globalConfig.KeyFile, globalConfig.Repositories)
 	}()
 	wg.Wait()
 

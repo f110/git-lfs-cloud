@@ -9,17 +9,22 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/f110/git-lfs-cloud/config"
 	"github.com/f110/git-lfs-cloud/database"
 	"github.com/f110/git-lfs-cloud/lfs"
 	"github.com/gliderlabs/ssh"
 )
 
 const (
-	HostKeyBits         = 4096
-	TokenExpire         = 3600 // 1 hour
-	AuthenticateCommand = "git-lfs-authenticate"
+	HostKeyBits              = 4096
+	TokenExpire              = 3600 // 1 hour
+	AuthenticateCommand      = "git-lfs-authenticate"
+	AdminCommand             = "git-lfs-admin"
+	AdminOperationWhoAmI     = "whoami"
+	AdminOperationInvalidate = "invalidate"
 )
 
 type Authenticate struct {
@@ -56,10 +61,6 @@ func readOrGenerateHostKey() ([]byte, error) {
 	return hostKey, nil
 }
 
-func handleWhoAmI(session ssh.Session, user string, _repo string) {
-	io.WriteString(session, fmt.Sprintf("Hi %s!\n", user))
-}
-
 func handleDownload(session ssh.Session, user, repo string) {
 	sess, err := lfs.FindSession(user)
 	if err != nil {
@@ -86,6 +87,85 @@ func handleUpload(session ssh.Session, user, repo string) {
 	handleDownload(session, user, repo)
 }
 
+func handleWhoAmI(session ssh.Session, user string, _repo string) {
+	io.WriteString(session, fmt.Sprintf("Hi %s!\n", user))
+}
+
+func handleInvalidate(session ssh.Session, user, repo string) {
+	splitRepo := strings.Split(repo, "/")
+	DefaultClient.InvalidateRepositoryCache(splitRepo[0], splitRepo[1])
+
+	conf := &config.RepositoryConfig{Owner: splitRepo[0], Repo: splitRepo[1]}
+	err := DefaultClient.crawlRepository(conf)
+	if err != nil {
+		io.WriteString(session, "Failed invalidate cache\n")
+		return
+	}
+
+	io.WriteString(session, "Success invalidate cache\n")
+}
+
+func authenticateCommand(s ssh.Session, operation, repo string) {
+	username := ""
+	pubKey := s.PublicKey()
+FindUserLoop:
+	for user, pubKeys := range PermitPublicKeys {
+		for _, pub := range pubKeys {
+			if ssh.KeysEqual(pubKey, pub) {
+				username = user
+				break FindUserLoop
+			}
+		}
+	}
+
+	users, err := database.ReadRepositoryUsers(repo)
+	if err != nil {
+		return
+	}
+	authenticated := false
+	for _, u := range users {
+		if u == username {
+			authenticated = true
+			break
+		}
+	}
+	if authenticated == false {
+		return
+	}
+
+	switch operation {
+	case lfs.OperationDownload:
+		handleDownload(s, username, repo)
+	case lfs.OperationUpload:
+		handleUpload(s, username, repo)
+	default:
+		io.WriteString(s, "not supported operation")
+	}
+}
+
+func adminCommand(s ssh.Session, operation, repo string) {
+	username := ""
+	pubKey := s.PublicKey()
+FindUserLoop:
+	for user, pubKeys := range PermitPublicKeys {
+		for _, pub := range pubKeys {
+			if ssh.KeysEqual(pubKey, pub) {
+				username = user
+				break FindUserLoop
+			}
+		}
+	}
+
+	switch operation {
+	case AdminOperationWhoAmI:
+		handleWhoAmI(s, username, repo)
+	case AdminOperationInvalidate:
+		handleInvalidate(s, username, repo)
+	default:
+		io.WriteString(s, "not supported operation")
+	}
+}
+
 func SSHServer() {
 	hostKey, err := readOrGenerateHostKey()
 	if err != nil {
@@ -95,39 +175,16 @@ func SSHServer() {
 	hostKeyOption := ssh.HostKeyPEM(hostKey)
 
 	ssh.Handle(func(s ssh.Session) {
-		var repo string
-		var operation string
-		var username string
-
-		if s.Command()[0] == AuthenticateCommand {
-			repo = s.Command()[1]
-			operation = s.Command()[2]
-		} else {
+		switch s.Command()[0] {
+		case AuthenticateCommand:
+			authenticateCommand(s, s.Command()[2], s.Command()[1][:strings.Index(s.Command()[1], ".git")])
+		case AdminCommand:
+			adminCommand(s, s.Command()[2], s.Command()[1][:strings.Index(s.Command()[1], ".git")])
+		default:
 			io.WriteString(s, "not supported\n")
 			return
 		}
 
-		pubKey := s.PublicKey()
-	FindUserLoop:
-		for user, pubKeys := range PermitPublicKeys {
-			for _, pub := range pubKeys {
-				if ssh.KeysEqual(pubKey, pub) {
-					username = user
-					break FindUserLoop
-				}
-			}
-		}
-
-		switch operation {
-		case lfs.OperationWhoAmI:
-			handleWhoAmI(s, username, repo)
-		case lfs.OperationDownload:
-			handleDownload(s, username, repo)
-		case lfs.OperationUpload:
-			handleUpload(s, username, repo)
-		default:
-			io.WriteString(s, "not supported operation")
-		}
 	})
 
 	publicKeyOption := ssh.PublicKeyAuth(func(user string, key ssh.PublicKey) bool {
