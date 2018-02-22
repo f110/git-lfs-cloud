@@ -156,7 +156,7 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 				Size:         o.Size,
 				Autheticated: true,
 				Actions: Action{
-					Download: &Download{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
+					Download: &Download{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix(), Header: map[string]string{"Content-Type": "application/octet-stream"}},
 				},
 			})
 		}
