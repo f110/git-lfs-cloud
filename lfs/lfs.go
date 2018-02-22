@@ -163,28 +163,28 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 	case OperationUpload:
 		for _, o := range batchReq.Objects {
 			u := server.operationUpload(repoName, o.Oid)
-			if u == "" {
-				continue
+			var a Action
+			if u != "" {
+				a = Action{Upload: &Upload{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()}}
 			}
 			resObj = append(resObj, Object{
 				Oid:          o.Oid,
 				Size:         o.Size,
 				Autheticated: true,
-				Actions: Action{
-					Upload: &Upload{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
-				},
+				Actions:      a,
 			})
 		}
 	}
 	batchRes.Objects = resObj
 
 	w.Header().Set("Content-Type", ContentType)
-	buf, err := json.Marshal(batchRes)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	err = enc.Encode(batchRes)
 	if err != nil {
 		log.Print(err)
 		return
 	}
-	w.Write(buf)
 }
 
 func (server *Server) operationDownload(repoName, objectID string) string {
