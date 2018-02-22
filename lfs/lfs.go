@@ -43,11 +43,11 @@ type BatchResponse struct {
 }
 
 type Object struct {
-	Oid          string  `json:"oid"`
-	Size         int     `json:"size"`
-	Autheticated bool    `json:"authenticated,omitempty"`
-	Actions      *Action `json:"actions,omitempty"`
-	Erros        *Error  `json:"errors,omitempty"`
+	Oid          string `json:"oid"`
+	Size         int    `json:"size"`
+	Autheticated bool   `json:"authenticated,omitempty"`
+	Actions      Action `json:"actions,omitempty"`
+	Erros        Error  `json:"errors,omitempty"`
 }
 
 type Action struct {
@@ -155,12 +155,8 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 				Oid:          o.Oid,
 				Size:         o.Size,
 				Autheticated: true,
-				Actions: &Action{
-					Download: &Download{
-						Href:      u,
-						ExpiresIn: time.Now().Add(5 * time.Minute).Unix(),
-						Header:    map[string]string{"Content-Type": "application/octet-stream"},
-					},
+				Actions: Action{
+					Download: &Download{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
 				},
 			})
 		}
@@ -171,22 +167,21 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 				Oid:          o.Oid,
 				Size:         o.Size,
 				Autheticated: true,
-				Actions: &Action{
+				Actions: Action{
 					Upload: &Upload{Href: u, ExpiresIn: time.Now().Add(5 * time.Minute).Unix()},
 				},
 			})
 		}
 	}
 	batchRes.Objects = resObj
-	batchRes.Transfer = "basic"
 
 	w.Header().Set("Content-Type", ContentType)
-	encoder := json.NewEncoder(w)
-	encoder.SetEscapeHTML(false)
-	err = encoder.Encode(batchRes)
+	buf, err := json.Marshal(batchRes)
 	if err != nil {
+		log.Print(err)
 		return
 	}
+	w.Write(buf)
 }
 
 func (server *Server) operationDownload(repoName, objectID string) string {
