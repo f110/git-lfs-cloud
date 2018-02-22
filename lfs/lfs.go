@@ -163,6 +163,9 @@ func (server *Server) batchHandler(w http.ResponseWriter, req *http.Request) {
 	case OperationUpload:
 		for _, o := range batchReq.Objects {
 			u := server.operationUpload(repoName, o.Oid)
+			if u == "" {
+				continue
+			}
 			resObj = append(resObj, Object{
 				Oid:          o.Oid,
 				Size:         o.Size,

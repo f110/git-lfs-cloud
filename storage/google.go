@@ -50,14 +50,17 @@ func (gcs *GoogleCloudStorage) GetObject(ctx context.Context, bucketName, repo, 
 }
 
 func (gcs *GoogleCloudStorage) Put(bucketName, repo, objectID string) (string, error) {
-	return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{
-		Method:         http.MethodPut,
-		PrivateKey:     gcs.privateKey,
-		GoogleAccessID: gcs.accessID,
-		Expires:        time.Now().Add(URLExpire),
-		ContentType:    "application/octet-stream",
-	},
-	)
+	_, err := gcs.client.Bucket(bucketName).Object(repo + "/" + objectID).Attrs(context.Background())
+	if err == storage.ErrObjectNotExist {
+		return storage.SignedURL(bucketName, repo+"/"+objectID, &storage.SignedURLOptions{
+			Method:         http.MethodPut,
+			PrivateKey:     gcs.privateKey,
+			GoogleAccessID: gcs.accessID,
+			Expires:        time.Now().Add(URLExpire),
+			ContentType:    "application/octet-stream",
+		})
+	}
+	return "", nil
 }
 
 func (gcs *GoogleCloudStorage) PutObject(ctx context.Context, bucketName, repo, objectID string) (io.WriteCloser, error) {
